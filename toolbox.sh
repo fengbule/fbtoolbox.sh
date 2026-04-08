@@ -1,5 +1,7 @@
-#!/usr/bin/env bash
-set -Eeu -o pipefail
+#!/bin/bash
+set -Ee
+set -u
+set -o pipefail
 
 APP_NAME="VPS 工具箱"
 APP_VERSION="v1.0.0"
