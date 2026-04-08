@@ -2,10 +2,9 @@
 
 一个分类整理的 VPS 工具箱脚本，收录常用测试、安装、网络优化、系统重装、流媒体检测、测速、回程测试等命令。
 
-除了综合工具箱外，仓库内还集成了 `fb` 端口转发工具入口。  
-其中 `fb` 是独立项目，来源仓库：
+其中 `fb` 为独立项目入口，来源仓库：
 
-- GitHub: https://github.com/fengbule/zhuanfa
+- https://github.com/fengbule/zhuanfa
 
 ---
 
