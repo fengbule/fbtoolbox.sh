@@ -1,0 +1,23 @@
+# Editor and OS clutter
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Common local outputs when testing commands from the repo root
+*.log
+AutoTrace.sh
+InstallNET.sh
+NewReinstall.sh
+aria2.sh
+box.sh
+dns-unlock.sh
+fail2ban.sh
+gost.sh
+menu.sh
+nezha.sh
+swap.sh
+tcp.sh
+tcpx.sh
+testrace.sh
+tools.sh

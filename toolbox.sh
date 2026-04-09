@@ -2,11 +2,12 @@
 set -Eeuo pipefail
 
 APP_NAME="VPS 工具箱"
-APP_VERSION="v1.2.0"
+APP_VERSION="v2.0.0"
 APP_REPO="https://github.com/fengbule/fbtoolbox.sh"
 SELF_SOURCE_URL="${TOOLBOX_SELF_SOURCE_URL:-https://raw.githubusercontent.com/fengbule/fbtoolbox.sh/main/toolbox.sh}"
 SELF_TARGET="${SELF_TARGET:-/usr/local/bin/toolbox}"
 FB_SOURCE_URL="${FB_SOURCE_URL:-https://raw.githubusercontent.com/fengbule/zhuanfa/main/fb.sh}"
+ITEM_SEP=$'\t'
 
 if [[ -t 1 && "${TERM:-dumb}" != "dumb" ]]; then
   C0='\033[0m'
@@ -34,12 +35,15 @@ err()  { echo -e "${C3}[ERR ]${C0} $*" >&2; }
 die()  { err "$*"; exit 1; }
 
 pause_enter() {
+  if [[ ! -t 0 ]]; then
+    return 0
+  fi
   echo
   read -r -p "按回车继续..." _
 }
 
 clear_screen() {
-  if [[ -t 1 ]] && command -v clear >/dev/null 2>&1; then
+  if [[ -t 0 && -t 1 ]] && command -v clear >/dev/null 2>&1; then
     clear || true
   fi
 }
@@ -110,7 +114,7 @@ execute_command() {
     read -r -p "确认继续请输入 YES: " yn
     [[ "$yn" == "YES" ]] || return 0
   else
-    read -r -p "确认执行？[Y/n]: " yn
+    read -r -p "确认执行? [Y/n]: " yn
     yn="${yn:-Y}"
     [[ "$yn" =~ ^[Yy]$ ]] || return 0
   fi
@@ -163,6 +167,22 @@ handle_info_item() {
   pause_enter
 }
 
+print_version() {
+  printf '%s\n' "${APP_NAME} ${APP_VERSION}"
+}
+
+install_file() {
+  local source_path="$1" target_path="$2"
+
+  if command -v install >/dev/null 2>&1; then
+    install -m 0755 "$source_path" "$target_path"
+    return 0
+  fi
+
+  cp "$source_path" "$target_path"
+  chmod 0755 "$target_path"
+}
+
 install_self() {
   local target_dir
   if [[ ! -f "$0" ]]; then
@@ -172,7 +192,7 @@ install_self() {
   fi
   target_dir="$(dirname "$SELF_TARGET")"
   mkdir -p "$target_dir"
-  install -m 0755 "$0" "$SELF_TARGET"
+  install_file "$0" "$SELF_TARGET"
   log "已安装到 $SELF_TARGET"
   log "以后直接输入 toolbox 即可"
 }
@@ -190,587 +210,198 @@ install_self_remote() {
     rm -f "$tmp"
     die "缺少 curl 或 wget，无法安装 toolbox"
   fi
-  install -m 0755 "$tmp" "$SELF_TARGET"
+  install_file "$tmp" "$SELF_TARGET"
   rm -f "$tmp"
   log "已从远程安装到 $SELF_TARGET"
   log "以后直接输入 toolbox 即可"
 }
 
+# 菜单项格式: 类型、显示名称、标题、命令/说明、模式、备注
+MAIN_MENU_ITEMS=(
+  "fb${ITEM_SEP}fb 端口转发"
+  "dd${ITEM_SEP}DD 重装脚本"
+  "benchmark${ITEM_SEP}综合基准测试"
+  "perf${ITEM_SEP}性能测试"
+  "media${ITEM_SEP}流媒体与 IP 质量"
+  "speedtest${ITEM_SEP}测速与路由"
+  "backtrace${ITEM_SEP}回程测试"
+  "functions${ITEM_SEP}系统与网络功能"
+  "installers${ITEM_SEP}环境与软件安装"
+  "allinone${ITEM_SEP}综合工具脚本"
+)
+
+FB_MENU_ITEMS=(
+  "cmd${ITEM_SEP}一键运行远程版 fb${ITEM_SEP}一键运行远程版 fb${ITEM_SEP}bash <(curl -fsSL ${FB_SOURCE_URL})${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}安装 fb 命令${ITEM_SEP}安装 fb 命令${ITEM_SEP}bash <(curl -fsSL ${FB_SOURCE_URL}) install-self${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}进入本地 fb 菜单${ITEM_SEP}进入本地 fb 菜单${ITEM_SEP}fb menu${ITEM_SEP}normal${ITEM_SEP}需要先安装 fb 命令。"
+  "cmd${ITEM_SEP}查看 fb 帮助${ITEM_SEP}查看 fb 帮助${ITEM_SEP}fb help${ITEM_SEP}normal${ITEM_SEP}需要先安装 fb 命令。"
+)
+
+DD_MENU_ITEMS=(
+  "cmd${ITEM_SEP}史上最强 DD Debian 12${ITEM_SEP}史上最强 DD Debian 12${ITEM_SEP}curl -fsSLo InstallNET.sh https://raw.githubusercontent.com/leitbogioro/Tools/master/Linux_reinstall/InstallNET.sh && chmod a+x InstallNET.sh && bash InstallNET.sh -debian 12 -pwd 'password'${ITEM_SEP}danger${ITEM_SEP}执行前建议把 password 改成你自己的 root 密码。"
+  "cmd${ITEM_SEP}MoeClub DD 脚本${ITEM_SEP}MoeClub DD 脚本${ITEM_SEP}bash <(curl -fsSL https://raw.githubusercontent.com/MoeClub/Note/master/InstallNET.sh) -d 11 -v 64 -p 密码 -port 端口 -a -firmware${ITEM_SEP}danger${ITEM_SEP}执行前建议把命令里的 密码 和 端口 改成你自己的值。"
+  "cmd${ITEM_SEP}beta.gs DD 脚本${ITEM_SEP}beta.gs DD 脚本${ITEM_SEP}curl -fsSLo NewReinstall.sh https://raw.githubusercontent.com/fcurrk/reinstall/master/NewReinstall.sh && chmod a+x NewReinstall.sh && bash NewReinstall.sh${ITEM_SEP}danger${ITEM_SEP}重装前请确认控制台或 VNC 可用。"
+  "cmd${ITEM_SEP}DD Windows 10${ITEM_SEP}DD Windows 10${ITEM_SEP}bash <(curl -fsSL https://raw.githubusercontent.com/leitbogioro/Tools/master/Linux_reinstall/InstallNET.sh) -windows 10 -lang 'cn'${ITEM_SEP}danger${ITEM_SEP}默认账号 Administrator，默认密码 Teddysun.com。"
+  "info${ITEM_SEP}查看 Windows 默认账号/密码${ITEM_SEP}Windows 默认账号/密码${ITEM_SEP}账户: Administrator  密码: Teddysun.com${ITEM_SEP}${ITEM_SEP}"
+)
+
+BENCHMARK_MENU_ITEMS=(
+  "cmd${ITEM_SEP}bench.sh${ITEM_SEP}bench.sh${ITEM_SEP}wget -qO- bench.sh | bash${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}LemonBench${ITEM_SEP}LemonBench${ITEM_SEP}wget -qO- https://raw.githubusercontent.com/LemonBench/LemonBench/main/LemonBench.sh | bash -s -- --fast${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}ecs.sh${ITEM_SEP}ecs.sh${ITEM_SEP}bash <(wget -qO- https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh)${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}NodeBench${ITEM_SEP}NodeBench${ITEM_SEP}bash <(curl -fsSL https://raw.githubusercontent.com/LloydAsp/NodeBench/main/NodeBench.sh)${ITEM_SEP}normal${ITEM_SEP}"
+)
+
+PERF_MENU_ITEMS=(
+  "cmd${ITEM_SEP}yabs${ITEM_SEP}yabs${ITEM_SEP}curl -fsSL yabs.sh | bash${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}只测 GB5${ITEM_SEP}只测 GB5${ITEM_SEP}curl -fsSL yabs.sh | bash -s -- -i5${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}跳过网络和磁盘，仅测 GB5${ITEM_SEP}跳过网络和磁盘，仅测 GB5${ITEM_SEP}curl -fsSL yabs.sh | bash -s -- -if5${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}改测 GB5，不测 GB6${ITEM_SEP}改测 GB5，不测 GB6${ITEM_SEP}curl -fsSL yabs.sh | bash -s -- -5${ITEM_SEP}normal${ITEM_SEP}"
+)
+
+MEDIA_MENU_ITEMS=(
+  "cmd${ITEM_SEP}常用流媒体检测${ITEM_SEP}常用流媒体检测${ITEM_SEP}bash <(curl -L -s check.unlock.media)${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}原生流媒体检测${ITEM_SEP}原生流媒体检测${ITEM_SEP}bash <(curl -fsSL Media.Check.Place)${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}精准流媒体检测${ITEM_SEP}精准流媒体检测${ITEM_SEP}bash <(curl -L -s https://github.com/1-stream/RegionRestrictionCheck/raw/main/check.sh)${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}IP 质量体检${ITEM_SEP}IP 质量体检${ITEM_SEP}bash <(curl -fsSL IP.Check.Place)${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}一键修改解锁 DNS${ITEM_SEP}一键修改解锁 DNS${ITEM_SEP}curl -fsSLo dns-unlock.sh https://raw.githubusercontent.com/Jimmyzxk/DNS-Alice-Unlock/main/dns-unlock.sh && bash dns-unlock.sh${ITEM_SEP}normal${ITEM_SEP}"
+)
+
+SPEEDTEST_MENU_ITEMS=(
+  "cmd${ITEM_SEP}Speedtest${ITEM_SEP}Speedtest${ITEM_SEP}bash <(curl -fsSL bash.icu/speedtest)${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}Taier${ITEM_SEP}Taier${ITEM_SEP}bash <(curl -fsSL res.yserver.ink/taier.sh)${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}hyperspeed${ITEM_SEP}hyperspeed${ITEM_SEP}bash <(curl -Lso- https://bench.im/hyperspeed)${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}全球测速${ITEM_SEP}全球测速${ITEM_SEP}wget -qO- nws.sh | bash${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}区域速度测试${ITEM_SEP}区域速度测试${ITEM_SEP}wget -qO- nws.sh | bash -s -- -r region_name${ITEM_SEP}normal${ITEM_SEP}执行前建议把 region_name 改成目标区域。"
+  "cmd${ITEM_SEP}Ping 和路由测试${ITEM_SEP}Ping 和路由测试${ITEM_SEP}wget -qO- nws.sh | bash -s -- -rt [region]${ITEM_SEP}normal${ITEM_SEP}执行前建议把 [region] 改成目标区域。"
+)
+
+BACKTRACE_MENU_ITEMS=(
+  "cmd${ITEM_SEP}直接显示回程${ITEM_SEP}直接显示回程${ITEM_SEP}curl -fsSL https://raw.githubusercontent.com/ludashi2020/backtrace/main/install.sh | sh${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}AutoTrace${ITEM_SEP}AutoTrace${ITEM_SEP}curl -fsSLo AutoTrace.sh https://raw.githubusercontent.com/Chennhaoo/Shell_Bash/master/AutoTrace.sh && chmod +x AutoTrace.sh && bash AutoTrace.sh${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}testrace${ITEM_SEP}testrace${ITEM_SEP}curl -fsSLo testrace.sh https://raw.githubusercontent.com/vpsxb/testrace/main/testrace.sh && bash testrace.sh${ITEM_SEP}normal${ITEM_SEP}"
+)
+
+FUNCTIONS_MENU_ITEMS=(
+  "cmd${ITEM_SEP}添加 SWAP${ITEM_SEP}添加 SWAP${ITEM_SEP}curl -fsSLo swap.sh https://www.moerats.com/usr/shell/swap.sh && bash swap.sh${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}Fail2ban${ITEM_SEP}Fail2ban${ITEM_SEP}curl -fsSLo fail2ban.sh https://raw.githubusercontent.com/FunctionClub/Fail2ban/master/fail2ban.sh && bash fail2ban.sh 2>&1 | tee fail2ban.log${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}一键开启 BBR${ITEM_SEP}一键开启 BBR${ITEM_SEP}echo 'net.core.default_qdisc=fq' >> /etc/sysctl.conf && echo 'net.ipv4.tcp_congestion_control=bbr' >> /etc/sysctl.conf && sysctl -p && sysctl net.ipv4.tcp_available_congestion_control && lsmod | grep bbr${ITEM_SEP}danger${ITEM_SEP}"
+  "cmd${ITEM_SEP}多功能 BBR 安装脚本${ITEM_SEP}多功能 BBR 安装脚本${ITEM_SEP}wget -qO tcp.sh https://gist.github.com/zeruns/a0ec603f20d1b86de6a774a8ba27588f/raw/4f9957ae23f5efb2bb7c57a198ae2cffebfb1c56/tcp.sh && chmod +x tcp.sh && ./tcp.sh${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}Linux-NetSpeed${ITEM_SEP}Linux-NetSpeed${ITEM_SEP}curl -fsSLo tcpx.sh https://raw.githubusercontent.com/ylx2016/Linux-NetSpeed/master/tcpx.sh && chmod +x tcpx.sh && ./tcpx.sh${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}TCP 窗口调优${ITEM_SEP}TCP 窗口调优${ITEM_SEP}wget -qO tools.sh http://sh.nekoneko.cloud/tools.sh && bash tools.sh${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}添加 WARP${ITEM_SEP}添加 WARP${ITEM_SEP}curl -fsSLo menu.sh https://gitlab.com/fscarmen/warp/-/raw/main/menu.sh && bash menu.sh [option] [license/url/token]${ITEM_SEP}normal${ITEM_SEP}执行前可以把 [option] [license/url/token] 替换成你的参数。"
+  "cmd${ITEM_SEP}25 端口开放测试${ITEM_SEP}25 端口开放测试${ITEM_SEP}telnet smtp.aol.com 25${ITEM_SEP}normal${ITEM_SEP}系统需要先安装 telnet。"
+)
+
+INSTALLERS_MENU_ITEMS=(
+  "cmd${ITEM_SEP}Docker${ITEM_SEP}Docker${ITEM_SEP}bash <(curl -fsSL https://get.docker.com)${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}Python 3 开发环境${ITEM_SEP}Python 3 开发环境${ITEM_SEP}apt-get update && apt-get install -y python3 python3-pip python3-venv${ITEM_SEP}normal${ITEM_SEP}适用于 Debian / Ubuntu 系。"
+  "cmd${ITEM_SEP}iperf3${ITEM_SEP}iperf3${ITEM_SEP}apt-get update && apt-get install -y iperf3${ITEM_SEP}normal${ITEM_SEP}适用于 Debian / Ubuntu 系。"
+  "cmd${ITEM_SEP}realm${ITEM_SEP}realm${ITEM_SEP}bash <(curl -fsSL https://raw.githubusercontent.com/zhouh047/realm-oneclick-install/main/realm.sh) -i${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}gost${ITEM_SEP}gost${ITEM_SEP}curl -fsSLo gost.sh https://raw.githubusercontent.com/qqrrooty/EZgost/main/gost.sh && chmod +x gost.sh && ./gost.sh${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}Aurora 面板${ITEM_SEP}Aurora 面板${ITEM_SEP}bash <(curl -fsSL https://raw.githubusercontent.com/Aurora-Admin-Panel/deploy/main/install.sh)${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}哪吒监控${ITEM_SEP}哪吒监控${ITEM_SEP}curl -fsSLo nezha.sh https://raw.githubusercontent.com/naiba/nezha/master/script/install.sh && chmod +x nezha.sh && sudo ./nezha.sh${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}WARP${ITEM_SEP}WARP${ITEM_SEP}curl -fsSLo menu.sh https://gitlab.com/fscarmen/warp/-/raw/main/menu.sh && bash menu.sh${ITEM_SEP}normal${ITEM_SEP}"
+)
+
+ALLINONE_MENU_ITEMS=(
+  "cmd${ITEM_SEP}科技lion${ITEM_SEP}科技lion${ITEM_SEP}apt update -y && apt install -y curl && bash <(curl -fsSL kejilion.sh)${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}SKY-BOX${ITEM_SEP}SKY-BOX${ITEM_SEP}wget -qO box.sh https://raw.githubusercontent.com/BlueSkyXN/SKY-BOX/main/box.sh && chmod +x box.sh && clear && ./box.sh${ITEM_SEP}normal${ITEM_SEP}"
+)
+
+declare -A MENU_TITLES=(
+  [fb]="fb 端口转发"
+  [dd]="DD 重装脚本"
+  [benchmark]="综合基准测试"
+  [perf]="性能测试"
+  [media]="流媒体与 IP 质量"
+  [speedtest]="测速与路由"
+  [backtrace]="回程测试"
+  [functions]="系统与网络功能"
+  [installers]="环境与软件安装"
+  [allinone]="综合工具脚本"
+)
+
+declare -A MENU_ARRAYS=(
+  [fb]="FB_MENU_ITEMS"
+  [dd]="DD_MENU_ITEMS"
+  [benchmark]="BENCHMARK_MENU_ITEMS"
+  [perf]="PERF_MENU_ITEMS"
+  [media]="MEDIA_MENU_ITEMS"
+  [speedtest]="SPEEDTEST_MENU_ITEMS"
+  [backtrace]="BACKTRACE_MENU_ITEMS"
+  [functions]="FUNCTIONS_MENU_ITEMS"
+  [installers]="INSTALLERS_MENU_ITEMS"
+  [allinone]="ALLINONE_MENU_ITEMS"
+)
+
+parse_menu_item() {
+  ITEM_KIND=""
+  ITEM_LABEL=""
+  ITEM_TITLE=""
+  ITEM_PAYLOAD=""
+  ITEM_MODE="normal"
+  ITEM_NOTE=""
+  IFS="$ITEM_SEP" read -r ITEM_KIND ITEM_LABEL ITEM_TITLE ITEM_PAYLOAD ITEM_MODE ITEM_NOTE <<< "$1"
+}
+
 show_main_menu() {
+  local index=1 item menu_key menu_label
   show_header
-  echo "1) fb 端口转发"
-  echo "2) DD 重装脚本"
-  echo "3) 综合测试脚本"
-  echo "4) 性能测试"
-  echo "5) 流媒体及 IP 质量测试"
-  echo "6) 测速脚本"
-  echo "7) 回程测试"
-  echo "8) 功能脚本"
-  echo "9) 一键安装常用环境及软件"
-  echo "10) 综合功能脚本"
-  echo "11) 其它"
-  echo "12) VPS 常备小命令"
-  echo "13) 杜甫检测脚本"
+  for item in "${MAIN_MENU_ITEMS[@]}"; do
+    IFS="$ITEM_SEP" read -r menu_key menu_label <<< "$item"
+    printf "%d) %s\n" "$index" "$menu_label"
+    ((index++))
+  done
   echo "98) 从远程更新/安装 toolbox"
   echo "99) 安装本地 toolbox 命令"
   echo "0) 退出"
   echo
 }
 
-menu_fb() {
-  local n=""
+run_menu() {
+  local menu_key="$1" choice="" item_count=0 i=0
+  local menu_title="${MENU_TITLES[$menu_key]:-}"
+  local array_name="${MENU_ARRAYS[$menu_key]:-}"
+
+  [[ -n "$menu_title" && -n "$array_name" ]] || die "未知菜单: $menu_key"
+
+  local -n menu_items_ref="$array_name"
+  item_count="${#menu_items_ref[@]}"
+
   while true; do
     show_header
-    show_submenu_title "fb 端口转发"
-    echo "1) 一键运行远程版 fb"
-    echo "2) 安装 fb 命令"
-    echo "3) 进入本机 fb 菜单"
-    echo "4) 查看 fb 帮助"
+    show_submenu_title "$menu_title"
+    for ((i = 0; i < item_count; i++)); do
+      parse_menu_item "${menu_items_ref[i]}"
+      printf "%d) %s\n" "$((i + 1))" "$ITEM_LABEL"
+    done
     echo "0) 返回"
     echo
-    read -r -p "请选择 [1]: " n
-    n="${n:-1}"
-    case "$n" in
-      1)
-        handle_command_item "一键运行远程版 fb" "bash <(curl -fsSL ${FB_SOURCE_URL})"
-        ;;
-      2)
-        handle_command_item "安装 fb 命令" "bash <(curl -fsSL ${FB_SOURCE_URL}) install-self"
-        ;;
-      3)
-        handle_command_item "进入本机 fb 菜单" "fb menu" "normal" "需要先安装 fb 命令。"
-        ;;
-      4)
-        handle_command_item "查看 fb 帮助" "fb help" "normal" "需要先安装 fb 命令。"
-        ;;
-      0)
-        return 0
-        ;;
-      *)
-        warn "无效选择"
-        pause_enter
-        ;;
-    esac
-  done
-}
+    read -r -p "请选择 [1]: " choice
+    choice="${choice:-1}"
 
-menu_dd() {
-  local n=""
-  while true; do
-    show_header
-    show_submenu_title "DD 重装脚本"
-    echo "1) 史上最强 DD 脚本 Debian 12"
-    echo "2) 萌咖 DD 脚本"
-    echo "3) beta.gs DD 脚本"
-    echo "4) DD Windows 10"
-    echo "5) Windows 默认账号密码"
-    echo "6) Windows 激活命令"
-    echo "0) 返回"
-    echo
-    read -r -p "请选择 [1]: " n
-    n="${n:-1}"
-    case "$n" in
-      1)
-        handle_command_item "史上最强 DD 脚本 Debian 12" "wget --no-check-certificate -qO InstallNET.sh 'https://raw.githubusercontent.com/leitbogioro/Tools/master/Linux_reinstall/InstallNET.sh' && chmod a+x InstallNET.sh && bash InstallNET.sh -debian 12 -pwd 'password'" "danger" "执行前建议把 password 改成你自己的 root 密码。"
-        ;;
-      2)
-        handle_command_item "萌咖 DD 脚本" "bash <(wget --no-check-certificate -qO- 'https://raw.githubusercontent.com/MoeClub/Note/master/InstallNET.sh') -d 11 -v 64 -p 密码 -port 端口 -a -firmware" "danger" "执行前建议把命令里的 密码 和 端口 改成你自己的值。"
-        ;;
-      3)
-        handle_command_item "beta.gs DD 脚本" "wget --no-check-certificate -O NewReinstall.sh https://raw.githubusercontent.com/fcurrk/reinstall/master/NewReinstall.sh && chmod a+x NewReinstall.sh && bash NewReinstall.sh" "danger" "重装前请确认控制台或 VNC 可用。"
-        ;;
-      4)
-        handle_command_item "DD Windows 10" "bash <(curl -sSL https://raw.githubusercontent.com/leitbogioro/Tools/master/Linux_reinstall/InstallNET.sh) -windows 10 -lang 'cn'" "danger" "默认账号 Administrator，默认密码 Teddysun.com。"
-        ;;
-      5)
-        handle_info_item "Windows 默认账号密码" $'账户: Administrator\n密码: Teddysun.com'
-        ;;
-      6)
-        handle_info_item "Windows 激活命令" "$(cat <<'EOF'
-登录 Windows 后:
-1. 按 Windows + R
-2. 输入 powershell 并回车
-3. 在弹出的窗口里执行:
+    if [[ "$choice" == "0" ]]; then
+      return 0
+    fi
 
-irm https://get.activated.win | iex
-EOF
-)"
-        ;;
-      0)
-        return 0
-        ;;
-      *)
-        warn "无效选择"
-        pause_enter
-        ;;
-    esac
-  done
-}
-
-menu_benchmark_all() {
-  local n=""
-  while true; do
-    show_header
-    show_submenu_title "综合测试脚本"
-    echo "1) bench.sh"
-    echo "2) LemonBench"
-    echo "3) 融合怪 ecs.sh"
-    echo "4) NodeBench"
-    echo "0) 返回"
-    echo
-    read -r -p "请选择 [1]: " n
-    n="${n:-1}"
-    case "$n" in
-      1)
-        handle_command_item "bench.sh" "wget -qO- bench.sh | bash"
-        ;;
-      2)
-        handle_command_item "LemonBench" "wget -qO- https://raw.githubusercontent.com/LemonBench/LemonBench/main/LemonBench.sh | bash -s -- --fast"
-        ;;
-      3)
-        handle_command_item "融合怪 ecs.sh" "bash <(wget -qO- --no-check-certificate https://gitlab.com/spiritysdx/za/-/raw/main/ecs.sh)"
-        ;;
-      4)
-        handle_command_item "NodeBench" "bash <(curl -sL https://raw.githubusercontent.com/LloydAsp/NodeBench/main/NodeBench.sh)"
-        ;;
-      0)
-        return 0
-        ;;
-      *)
-        warn "无效选择"
-        pause_enter
-        ;;
-    esac
-  done
-}
-
-menu_perf() {
-  local n=""
-  while true; do
-    show_header
-    show_submenu_title "性能测试"
-    echo "1) yabs"
-    echo "2) 跳过网络，只测 GB5"
-    echo "3) 跳过网络和磁盘，只测 GB5"
-    echo "4) 改测 GB5 不测 GB6"
-    echo "0) 返回"
-    echo
-    read -r -p "请选择 [1]: " n
-    n="${n:-1}"
-    case "$n" in
-      1)
-        handle_command_item "yabs" "curl -sL yabs.sh | bash"
-        ;;
-      2)
-        handle_command_item "跳过网络，只测 GB5" "curl -sL yabs.sh | bash -s -- -i5"
-        ;;
-      3)
-        handle_command_item "跳过网络和磁盘，只测 GB5" "curl -sL yabs.sh | bash -s -- -if5"
-        ;;
-      4)
-        handle_command_item "改测 GB5 不测 GB6" "curl -sL yabs.sh | bash -s -- -5"
-        ;;
-      0)
-        return 0
-        ;;
-      *)
-        warn "无效选择"
-        pause_enter
-        ;;
-    esac
-  done
-}
-
-menu_media() {
-  local n=""
-  while true; do
-    show_header
-    show_submenu_title "流媒体及 IP 质量测试"
-    echo "1) 最常用版本"
-    echo "2) 原生检测脚本"
-    echo "3) 准确度最高版本"
-    echo "4) IP 质量体检脚本"
-    echo "5) 一键修改解锁 DNS"
-    echo "6) BBR v3 优化脚本"
-    echo "0) 返回"
-    echo
-    read -r -p "请选择 [1]: " n
-    n="${n:-1}"
-    case "$n" in
-      1)
-        handle_command_item "最常用版本" "bash <(curl -L -s check.unlock.media)"
-        ;;
-      2)
-        handle_command_item "原生检测脚本" "bash <(curl -sL Media.Check.Place)"
-        ;;
-      3)
-        handle_command_item "准确度最高版本" "bash <(curl -L -s https://github.com/1-stream/RegionRestrictionCheck/raw/main/check.sh)"
-        ;;
-      4)
-        handle_command_item "IP 质量体检脚本" "bash <(curl -sL IP.Check.Place)"
-        ;;
-      5)
-        handle_command_item "一键修改解锁 DNS" "wget https://raw.githubusercontent.com/Jimmyzxk/DNS-Alice-Unlock/refs/heads/main/dns-unlock.sh && bash dns-unlock.sh"
-        ;;
-      6)
-        handle_command_item "BBR v3 优化脚本" 'bash <(curl -fsSL "https://raw.githubusercontent.com/Eric86777/vps-tcp-tune/main/install-alias.sh?$(date +%s)")' "normal" "安装后执行 source ~/.bashrc 或 source ~/.zshrc，然后直接输入 bbr。"
-        ;;
-      0)
-        return 0
-        ;;
-      *)
-        warn "无效选择"
-        pause_enter
-        ;;
-    esac
-  done
-}
-
-menu_speedtest() {
-  local n=""
-  while true; do
-    show_header
-    show_submenu_title "测速脚本"
-    echo "1) Speedtest"
-    echo "2) Taier"
-    echo "3) hyperspeed"
-    echo "4) 全球测速"
-    echo "5) 区域速度测试"
-    echo "6) Ping 和路由测试"
-    echo "0) 返回"
-    echo
-    read -r -p "请选择 [1]: " n
-    n="${n:-1}"
-    case "$n" in
-      1)
-        handle_command_item "Speedtest" "bash <(curl -sL bash.icu/speedtest)"
-        ;;
-      2)
-        handle_command_item "Taier" "bash <(curl -sL res.yserver.ink/taier.sh)"
-        ;;
-      3)
-        handle_command_item "hyperspeed" "bash <(curl -Lso- https://bench.im/hyperspeed)"
-        ;;
-      4)
-        handle_command_item "全球测速" "wget -qO- nws.sh | bash"
-        ;;
-      5)
-        handle_command_item "区域速度测试" "wget -qO- nws.sh | bash -s -- -r region_name" "normal" "执行前建议把 region_name 改成目标区域。"
-        ;;
-      6)
-        handle_command_item "Ping 和路由测试" "wget -qO- nws.sh | bash -s -- -rt [region]" "normal" "执行前建议把 [region] 改成目标区域。"
-        ;;
-      0)
-        return 0
-        ;;
-      *)
-        warn "无效选择"
-        pause_enter
-        ;;
-    esac
-  done
-}
-
-menu_backtrace() {
-  local n=""
-  while true; do
-    show_header
-    show_submenu_title "回程测试"
-    echo "1) 直接显示回程（小白用）"
-    echo "2) 回程详细测试 AutoTrace"
-    echo "3) testrace"
-    echo "0) 返回"
-    echo
-    read -r -p "请选择 [1]: " n
-    n="${n:-1}"
-    case "$n" in
-      1)
-        handle_command_item "直接显示回程（小白用）" "curl https://raw.githubusercontent.com/ludashi2020/backtrace/main/install.sh -sSf | sh"
-        ;;
-      2)
-        handle_command_item "回程详细测试 AutoTrace" "wget -N --no-check-certificate https://raw.githubusercontent.com/Chennhaoo/Shell_Bash/master/AutoTrace.sh && chmod +x AutoTrace.sh && bash AutoTrace.sh"
-        ;;
-      3)
-        handle_command_item "testrace" "wget https://ghproxy.com/https://raw.githubusercontent.com/vpsxb/testrace/main/testrace.sh -O testrace.sh && bash testrace.sh"
-        ;;
-      0)
-        return 0
-        ;;
-      *)
-        warn "无效选择"
-        pause_enter
-        ;;
-    esac
-  done
-}
-
-menu_functions() {
-  local n=""
-  while true; do
-    show_header
-    show_submenu_title "功能脚本"
-    echo "1) 添加 SWAP"
-    echo "2) Fail2ban"
-    echo "3) 一键开启 BBR"
-    echo "4) 多功能 BBR 安装脚本"
-    echo "5) 锐速 / BBRPLUS / BBR2 / BBR3"
-    echo "6) TCP 窗口调优"
-    echo "7) 添加 WARP"
-    echo "8) 25 端口开放测试"
-    echo "0) 返回"
-    echo
-    read -r -p "请选择 [1]: " n
-    n="${n:-1}"
-    case "$n" in
-      1)
-        handle_command_item "添加 SWAP" "wget https://www.moerats.com/usr/shell/swap.sh && bash swap.sh"
-        ;;
-      2)
-        handle_command_item "Fail2ban" "wget --no-check-certificate https://raw.githubusercontent.com/FunctionClub/Fail2ban/master/fail2ban.sh && bash fail2ban.sh 2>&1 | tee fail2ban.log"
-        ;;
-      3)
-        handle_command_item "一键开启 BBR" "echo 'net.core.default_qdisc=fq' >> /etc/sysctl.conf && echo 'net.ipv4.tcp_congestion_control=bbr' >> /etc/sysctl.conf && sysctl -p && sysctl net.ipv4.tcp_available_congestion_control && lsmod | grep bbr" "danger"
-        ;;
-      4)
-        handle_command_item "多功能 BBR 安装脚本" "wget -N --no-check-certificate 'https://gist.github.com/zeruns/a0ec603f20d1b86de6a774a8ba27588f/raw/4f9957ae23f5efb2bb7c57a198ae2cffebfb1c56/tcp.sh' && chmod +x tcp.sh && ./tcp.sh"
-        ;;
-      5)
-        handle_command_item "锐速 / BBRPLUS / BBR2 / BBR3" "wget -O tcpx.sh 'https://github.com/ylx2016/Linux-NetSpeed/raw/master/tcpx.sh' && chmod +x tcpx.sh && ./tcpx.sh"
-        ;;
-      6)
-        handle_command_item "TCP 窗口调优" "wget http://sh.nekoneko.cloud/tools.sh -O tools.sh && bash tools.sh"
-        ;;
-      7)
-        handle_command_item "添加 WARP" "wget -N https://gitlab.com/fscarmen/warp/-/raw/main/menu.sh && bash menu.sh [option] [lisence/url/token]" "normal" "执行前可以把 [option] [lisence/url/token] 替换成你的参数。"
-        ;;
-      8)
-        handle_command_item "25 端口开放测试" "telnet smtp.aol.com 25" "normal" "系统需要先安装 telnet。"
-        ;;
-      0)
-        return 0
-        ;;
-      *)
-        warn "无效选择"
-        pause_enter
-        ;;
-    esac
-  done
-}
-
-menu_installers() {
-  local n=""
-  while true; do
-    show_header
-    show_submenu_title "一键安装常用环境及软件"
-    echo "1) Docker"
-    echo "2) Python"
-    echo "3) iperf3"
-    echo "4) realm"
-    echo "5) gost"
-    echo "6) 极光面板"
-    echo "7) 哪吒监控"
-    echo "8) 哪吒前端配置片段"
-    echo "9) WARP"
-    echo "10) Aria2"
-    echo "11) 宝塔"
-    echo "12) PVE 虚拟化"
-    echo "13) Argox"
-    echo "0) 返回"
-    echo
-    read -r -p "请选择 [1]: " n
-    n="${n:-1}"
-    case "$n" in
-      1)
-        handle_command_item "Docker" "bash <(curl -sL 'https://get.docker.com')"
-        ;;
-      2)
-        handle_command_item "Python" "curl -O https://raw.githubusercontent.com/lx969788249/lxspacepy/master/pyinstall.sh && chmod +x pyinstall.sh && ./pyinstall.sh"
-        ;;
-      3)
-        handle_command_item "iperf3" "apt install iperf3" "normal" "适用于 Debian / Ubuntu 系。"
-        ;;
-      4)
-        handle_command_item "realm" "bash <(curl -L https://raw.githubusercontent.com/zhouh047/realm-oneclick-install/main/realm.sh) -i"
-        ;;
-      5)
-        handle_command_item "gost" "wget --no-check-certificate -O gost.sh https://raw.githubusercontent.com/qqrrooty/EZgost/main/gost.sh && chmod +x gost.sh && ./gost.sh"
-        ;;
-      6)
-        handle_command_item "极光面板" "bash <(curl -fsSL https://raw.githubusercontent.com/Aurora-Admin-Panel/deploy/main/install.sh)"
-        ;;
-      7)
-        handle_command_item "哪吒监控" "curl -L https://raw.githubusercontent.com/naiba/nezha/master/script/install.sh -o nezha.sh && chmod +x nezha.sh && sudo ./nezha.sh"
-        ;;
-      8)
-        handle_info_item "哪吒前端配置片段" "$(cat <<'EOF'
-<script>
-window.ShowNetTransfer = true;
-window.FixedTopServerName = true;
-window.DisableAnimatedMan = true
-</script>
-EOF
-)"
-        ;;
-      9)
-        handle_command_item "WARP" "wget -N https://gitlab.com/fscarmen/warp/-/raw/main/menu.sh && bash menu.sh"
-        ;;
-      10)
-        handle_command_item "Aria2" "wget -N git.io/aria2.sh && chmod +x aria2.sh && ./aria2.sh"
-        ;;
-      11)
-        handle_command_item "宝塔" "wget -O install.sh http://v7.hostcli.com/install/install-ubuntu_6.0.sh && sudo bash install.sh" "danger"
-        ;;
-      12)
-        handle_command_item "PVE 虚拟化" "bash <(wget -qO- --no-check-certificate https://raw.githubusercontent.com/oneclickvirt/pve/main/scripts/build_backend.sh)" "danger"
-        ;;
-      13)
-        handle_command_item "Argox" "bash <(wget -qO- https://raw.githubusercontent.com/fscarmen/argox/main/argox.sh)"
-        ;;
-      0)
-        return 0
-        ;;
-      *)
-        warn "无效选择"
-        pause_enter
-        ;;
-    esac
-  done
-}
-
-menu_allinone() {
-  local n=""
-  while true; do
-    show_header
-    show_submenu_title "综合功能脚本"
-    echo "1) 科技lion"
-    echo "2) SKY-BOX"
-    echo "0) 返回"
-    echo
-    read -r -p "请选择 [1]: " n
-    n="${n:-1}"
-    case "$n" in
-      1)
-        handle_command_item "科技lion" "apt update -y && apt install -y curl && bash <(curl -sL kejilion.sh)"
-        ;;
-      2)
-        handle_command_item "SKY-BOX" "wget -O box.sh https://raw.githubusercontent.com/BlueSkyXN/SKY-BOX/main/box.sh && chmod +x box.sh && clear && ./box.sh"
-        ;;
-      0)
-        return 0
-        ;;
-      *)
-        warn "无效选择"
-        pause_enter
-        ;;
-    esac
-  done
-}
-
-menu_other() {
-  local n=""
-  while true; do
-    show_header
-    show_submenu_title "其它"
-    echo "1) TG 中文汉化"
-    echo "2) 送中报告地址"
-    echo "3) TCP 迷之调参"
-    echo "4) awesome_docker"
-    echo "0) 返回"
-    echo
-    read -r -p "请选择 [1]: " n
-    n="${n:-1}"
-    case "$n" in
-      1)
-        handle_info_item "TG 中文汉化" $'链接:\nhttps://t.me/setlanguage/classic-zh-cn'
-        ;;
-      2)
-        handle_info_item "送中报告地址" $'去 Google 的帮助中心提交 IP 问题报告。\n\n原始整理里没有给出固定链接，这里先保留为说明项。'
-        ;;
-      3)
-        handle_info_item "TCP 迷之调参" $'原始整理里没有给出固定脚本或链接，这里先保留为占位说明项。'
-        ;;
-      4)
-        handle_info_item "awesome_docker" $'原始整理里没有给出固定脚本或链接，这里先保留为占位说明项。'
-        ;;
-      0)
-        return 0
-        ;;
-      *)
-        warn "无效选择"
-        pause_enter
-        ;;
-    esac
-  done
-}
-
-menu_smallcmd() {
-  handle_info_item "VPS 常备小命令" "$(cat <<'EOF'
-参考地址:
-https://www.nodeseek.com/post-424648-1
-
-这是非脚本命令合集，建议按文章里的场景说明手动挑选执行。
-EOF
-)"
-}
-
-menu_dufu() {
-  local n=""
-  while true; do
-    show_header
-    show_submenu_title "杜甫检测脚本"
-    echo "1) sick.onl"
-    echo "2) Aniverse A"
-    echo "3) nws.sh"
-    echo "4) 下载 InstallNET.sh"
-    echo "5) Debian 12 DD"
-    echo "6) Debian 12 RAID0 DD"
-    echo "7) 指定网络 DD"
-    echo "8) 指定密码 DD"
-    echo "9) hardware_info 中文"
-    echo "10) 禁用 IPv6"
-    echo "0) 返回"
-    echo
-    read -r -p "请选择 [1]: " n
-    n="${n:-1}"
-    case "$n" in
-      1)
-        handle_command_item "sick.onl" "curl -sL https://sick.onl | bash"
-        ;;
-      2)
-        handle_command_item "Aniverse A" "wget https://github.com/Aniverse/A/raw/i/a && bash a"
-        ;;
-      3)
-        handle_command_item "nws.sh" "wget -qO- nws.sh | bash"
-        ;;
-      4)
-        handle_command_item "下载 InstallNET.sh" "wget --no-check-certificate -qO InstallNET.sh 'https://raw.githubusercontent.com/leitbogioro/Tools/master/Linux_reinstall/InstallNET.sh' && chmod a+x InstallNET.sh"
-        ;;
-      5)
-        handle_command_item "Debian 12 DD" "wget --no-check-certificate -qO InstallNET.sh 'https://raw.githubusercontent.com/leitbogioro/Tools/master/Linux_reinstall/InstallNET.sh' && chmod a+x InstallNET.sh && bash InstallNET.sh -debian 12" "danger"
-        ;;
-      6)
-        handle_command_item "Debian 12 RAID0 DD" "wget --no-check-certificate -qO InstallNET.sh 'https://raw.githubusercontent.com/leitbogioro/Tools/master/Linux_reinstall/InstallNET.sh' && chmod a+x InstallNET.sh && bash InstallNET.sh -debian 12 -raid '0'" "danger"
-        ;;
-      7)
-        handle_command_item "指定网络 DD" "wget --no-check-certificate -qO InstallNET.sh 'https://raw.githubusercontent.com/leitbogioro/Tools/master/Linux_reinstall/InstallNET.sh' && chmod a+x InstallNET.sh && bash InstallNET.sh -debian 12 --ip-addr 139.162.52.1 --ip-mask 24 --ip-gate 139.162.52.1 --ip6-addr 2a07:e040:2:1d3::1 --ip6-gate 2a07:e040::1 --ip6-mask 32" "danger" "执行前建议改成你自己的 IPv4 / IPv6 参数。"
-        ;;
-      8)
-        handle_command_item "指定密码 DD" "wget --no-check-certificate -qO InstallNET.sh 'https://raw.githubusercontent.com/leitbogioro/Tools/master/Linux_reinstall/InstallNET.sh' && chmod a+x InstallNET.sh && bash InstallNET.sh -debian 12 -pwd 'password'" "danger" "执行前建议把 password 改成你自己的密码。"
-        ;;
-      9)
-        handle_command_item "hardware_info 中文" "curl -sL https://raw.githubusercontent.com/Yuri-NagaSaki/SICK/refs/heads/main/hardware_info.sh | bash -s -- -cn"
-        ;;
-      10)
-        handle_command_item "禁用 IPv6" "echo 'net.ipv6.conf.all.disable_ipv6 = 1' >> /etc/sysctl.conf && echo 'net.ipv6.conf.default.disable_ipv6 = 1' >> /etc/sysctl.conf && echo 'net.ipv6.conf.lo.disable_ipv6 = 1' >> /etc/sysctl.conf && sysctl -p" "danger"
-        ;;
-      0)
-        return 0
-        ;;
-      *)
-        warn "无效选择"
-        pause_enter
-        ;;
-    esac
+    if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= item_count )); then
+      parse_menu_item "${menu_items_ref[choice - 1]}"
+      case "$ITEM_KIND" in
+        cmd)
+          handle_command_item "$ITEM_TITLE" "$ITEM_PAYLOAD" "${ITEM_MODE:-normal}" "$ITEM_NOTE"
+          ;;
+        info)
+          handle_info_item "$ITEM_TITLE" "$ITEM_PAYLOAD"
+          ;;
+        *)
+          die "未知菜单项类型: $ITEM_KIND"
+          ;;
+      esac
+    else
+      warn "无效选择"
+      pause_enter
+    fi
   done
 }
 
@@ -779,8 +410,10 @@ show_help() {
 用法:
   bash toolbox.sh
   bash toolbox.sh menu
+  bash toolbox.sh help
+  bash toolbox.sh version
   bash toolbox.sh install-self
-  bash toolbox.sh install-self-remote
+  bash toolbox.sh update-self
 
 远程运行:
   bash <(curl -fsSL ${SELF_SOURCE_URL})
@@ -789,66 +422,36 @@ show_help() {
   curl -fsSL ${SELF_SOURCE_URL} | tr -d '\r' > /usr/local/bin/toolbox
   chmod 755 /usr/local/bin/toolbox
   toolbox
+
+说明:
+  - 已移除占位说明页、重复分类和明显偏题的入口。
+  - 仅保留更聚焦的 VPS 检测、重装、网络和安装类功能。
+  - 远程脚本来自第三方仓库，执行前请自行判断风险。
 EOF
 }
 
 main() {
-  local cmd="${1:-menu}" n=""
+  local cmd="${1:-menu}" choice="" menu_key="" _
+
   case "$cmd" in
     install-self)
       install_self
       ;;
-    install-self-remote)
+    install-self-remote|update-self)
       install_self_remote
       ;;
     help|-h|--help)
       show_help
       ;;
+    version|-v|--version)
+      print_version
+      ;;
     menu|"")
       while true; do
         show_main_menu
-        read -r -p "请选择分类 [1]: " n
-        n="${n:-1}"
-        case "$n" in
-          1)
-            menu_fb
-            ;;
-          2)
-            menu_dd
-            ;;
-          3)
-            menu_benchmark_all
-            ;;
-          4)
-            menu_perf
-            ;;
-          5)
-            menu_media
-            ;;
-          6)
-            menu_speedtest
-            ;;
-          7)
-            menu_backtrace
-            ;;
-          8)
-            menu_functions
-            ;;
-          9)
-            menu_installers
-            ;;
-          10)
-            menu_allinone
-            ;;
-          11)
-            menu_other
-            ;;
-          12)
-            menu_smallcmd
-            ;;
-          13)
-            menu_dufu
-            ;;
+        read -r -p "请选择分类 [1]: " choice
+        choice="${choice:-1}"
+        case "$choice" in
           98)
             install_self_remote
             pause_enter
@@ -861,8 +464,13 @@ main() {
             exit 0
             ;;
           *)
-            warn "无效选择"
-            pause_enter
+            if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#MAIN_MENU_ITEMS[@]} )); then
+              IFS="$ITEM_SEP" read -r menu_key _ <<< "${MAIN_MENU_ITEMS[choice - 1]}"
+              run_menu "$menu_key"
+            else
+              warn "无效选择"
+              pause_enter
+            fi
             ;;
         esac
       done
