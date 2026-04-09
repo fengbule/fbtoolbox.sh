@@ -409,11 +409,15 @@ show_help() {
   cat <<EOF
 用法:
   bash toolbox.sh
-  bash toolbox.sh menu
-  bash toolbox.sh help
-  bash toolbox.sh version
   bash toolbox.sh install-self
-  bash toolbox.sh update-self
+  bash <(curl -fsSL ${SELF_SOURCE_URL})
+
+安装后管理:
+  toolbox
+  toolbox menu
+  toolbox help
+  toolbox version
+  toolbox update-self
 
 远程运行:
   bash <(curl -fsSL ${SELF_SOURCE_URL})

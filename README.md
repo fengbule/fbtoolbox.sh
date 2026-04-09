@@ -50,10 +50,13 @@ toolbox
 bash toolbox.sh install-self
 ```
 
-远程更新本地命令:
+安装完成后的管理命令统一使用 `toolbox`:
 
 ```bash
-bash toolbox.sh update-self
+toolbox
+toolbox help
+toolbox version
+toolbox update-self
 ```
 
 ## 本地测试
