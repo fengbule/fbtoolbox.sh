@@ -14,7 +14,7 @@
 
 - 移除了占位说明页、重复分类和明显偏题的入口
 - 保留更常用、可直接执行的 VPS 脚本入口
-- 增加 `version` 和 `update-self` 命令
+- 增加 `version`、`update-self` 和 `uninstall-self` 命令
 - 补充本地可跑的 smoke test
 
 ## 当前分类
@@ -36,7 +36,16 @@
 bash <(curl -fsSL https://raw.githubusercontent.com/fengbule/fbtoolbox.sh/main/toolbox.sh)
 ```
 
+上面这条是临时运行，不会自动生成 `toolbox` 命令。
+
 ## 安装为本地命令
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/fengbule/fbtoolbox.sh/main/toolbox.sh) install-self
+toolbox
+```
+
+也可以使用传统安装方式:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/fengbule/fbtoolbox.sh/main/toolbox.sh | tr -d '\r' > /usr/local/bin/toolbox
@@ -50,6 +59,12 @@ toolbox
 bash toolbox.sh install-self
 ```
 
+如果安装后当前 shell 仍提示找不到 `toolbox`，先执行:
+
+```bash
+hash -r
+```
+
 安装完成后的管理命令统一使用 `toolbox`:
 
 ```bash
@@ -57,6 +72,7 @@ toolbox
 toolbox help
 toolbox version
 toolbox update-self
+toolbox uninstall-self
 ```
 
 ## 本地测试
@@ -77,6 +93,7 @@ bash tests/smoke.sh
 - 某些命令包含占位符，例如 `password`、`端口`、`region_name`，执行前建议先修改
 - 远程脚本来自第三方仓库，运行前请自行判断风险
 - DD、内核优化、网络改写一类命令都已标记为危险操作
+- `toolbox uninstall-self` 只删除安装出来的命令文件，不回滚已经执行过的外部脚本或系统改动
 
 ## 换行控制
 

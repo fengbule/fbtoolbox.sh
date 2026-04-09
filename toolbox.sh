@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 APP_NAME="VPS 工具箱"
-APP_VERSION="v2.0.0"
+APP_VERSION="v2.1.0"
 APP_REPO="https://github.com/fengbule/fbtoolbox.sh"
 SELF_SOURCE_URL="${TOOLBOX_SELF_SOURCE_URL:-https://raw.githubusercontent.com/fengbule/fbtoolbox.sh/main/toolbox.sh}"
 SELF_TARGET="${SELF_TARGET:-/usr/local/bin/toolbox}"
@@ -183,6 +183,31 @@ install_file() {
   chmod 0755 "$target_path"
 }
 
+show_post_install_hint() {
+  local target_dir
+  target_dir="$(dirname "$SELF_TARGET")"
+
+  log "已安装到 $SELF_TARGET"
+  if [[ ":$PATH:" != *":${target_dir}:"* ]]; then
+    warn "${target_dir} 当前不在 PATH 中。"
+    warn "可直接运行: $SELF_TARGET"
+    return 0
+  fi
+
+  log "以后直接输入 toolbox 即可"
+  if [[ -t 0 ]]; then
+    echo -e "${DIM}如果当前 shell 仍提示找不到 toolbox，可执行 hash -r 后重试。${C0}"
+  fi
+}
+
+show_temporary_run_hint() {
+  if is_installed_toolbox "$SELF_TARGET"; then
+    return 0
+  fi
+
+  echo -e "${DIM}提示: 当前是临时运行模式；如需后续直接输入 toolbox，请先选择 99 安装本地命令。${C0}"
+}
+
 install_self() {
   local target_dir
   if [[ ! -f "$0" ]]; then
@@ -193,8 +218,7 @@ install_self() {
   target_dir="$(dirname "$SELF_TARGET")"
   mkdir -p "$target_dir"
   install_file "$0" "$SELF_TARGET"
-  log "已安装到 $SELF_TARGET"
-  log "以后直接输入 toolbox 即可"
+  show_post_install_hint
 }
 
 install_self_remote() {
@@ -212,8 +236,38 @@ install_self_remote() {
   fi
   install_file "$tmp" "$SELF_TARGET"
   rm -f "$tmp"
-  log "已从远程安装到 $SELF_TARGET"
-  log "以后直接输入 toolbox 即可"
+  show_post_install_hint
+}
+
+is_installed_toolbox() {
+  local target_path="$1"
+  [[ -f "$target_path" ]] || return 1
+  grep -Fq "APP_REPO=\"${APP_REPO}\"" "$target_path"
+}
+
+uninstall_self() {
+  local yn=""
+
+  if [[ -d "$SELF_TARGET" && ! -L "$SELF_TARGET" ]]; then
+    die "SELF_TARGET 指向目录，拒绝卸载: $SELF_TARGET"
+  fi
+
+  if [[ ! -e "$SELF_TARGET" && ! -L "$SELF_TARGET" ]]; then
+    log "未发现已安装的 toolbox 命令: $SELF_TARGET"
+    return 0
+  fi
+
+  if ! is_installed_toolbox "$SELF_TARGET"; then
+    die "目标不是当前仓库安装的 toolbox 命令: $SELF_TARGET"
+  fi
+
+  if [[ -t 0 ]]; then
+    read -r -p "确认卸载 $SELF_TARGET ? [y/N]: " yn
+    [[ "$yn" =~ ^[Yy]$ ]] || return 0
+  fi
+
+  rm -f -- "$SELF_TARGET"
+  log "已卸载 $SELF_TARGET"
 }
 
 # 菜单项格式: 类型、显示名称、标题、命令/说明、模式、备注
@@ -353,9 +407,12 @@ show_main_menu() {
     printf "%d) %s\n" "$index" "$menu_label"
     ((index++))
   done
+  echo "97) 卸载已安装的 toolbox 命令"
   echo "98) 从远程更新/安装 toolbox"
   echo "99) 安装本地 toolbox 命令"
   echo "0) 退出"
+  echo
+  show_temporary_run_hint
   echo
 }
 
@@ -410,7 +467,9 @@ show_help() {
 用法:
   bash toolbox.sh
   bash toolbox.sh install-self
+  bash toolbox.sh uninstall-self
   bash <(curl -fsSL ${SELF_SOURCE_URL})
+  bash <(curl -fsSL ${SELF_SOURCE_URL}) install-self
 
 安装后管理:
   toolbox
@@ -418,11 +477,14 @@ show_help() {
   toolbox help
   toolbox version
   toolbox update-self
+  toolbox uninstall-self
 
 远程运行:
   bash <(curl -fsSL ${SELF_SOURCE_URL})
 
 远程安装:
+  bash <(curl -fsSL ${SELF_SOURCE_URL}) install-self
+  或
   curl -fsSL ${SELF_SOURCE_URL} | tr -d '\r' > /usr/local/bin/toolbox
   chmod 755 /usr/local/bin/toolbox
   toolbox
@@ -431,6 +493,7 @@ show_help() {
   - 已移除占位说明页、重复分类和明显偏题的入口。
   - 仅保留更聚焦的 VPS 检测、重装、网络和安装类功能。
   - 远程脚本来自第三方仓库，执行前请自行判断风险。
+  - uninstall-self 仅删除已安装的 toolbox 命令文件，不回滚已执行过的外部脚本或系统改动。
 EOF
 }
 
@@ -440,6 +503,9 @@ main() {
   case "$cmd" in
     install-self)
       install_self
+      ;;
+    uninstall-self)
+      uninstall_self
       ;;
     install-self-remote|update-self)
       install_self_remote
@@ -456,6 +522,10 @@ main() {
         read -r -p "请选择分类 [1]: " choice
         choice="${choice:-1}"
         case "$choice" in
+          97)
+            uninstall_self
+            pause_enter
+            ;;
           98)
             install_self_remote
             pause_enter
