@@ -2,12 +2,15 @@
 set -Eeuo pipefail
 
 APP_NAME="VPS 工具箱"
-APP_VERSION="v2.1.0"
-APP_REPO="https://github.com/fengbule/fbtoolbox.sh"
-SELF_SOURCE_URL="${TOOLBOX_SELF_SOURCE_URL:-https://raw.githubusercontent.com/fengbule/fbtoolbox.sh/main/toolbox.sh}"
-SELF_TARGET="${SELF_TARGET:-/usr/local/bin/toolbox}"
+APP_VERSION="v2.2.0"
+APP_REPO="https://github.com/fengbule/fbtoolbox"
+SELF_SOURCE_URL="${TOOLBOX_SELF_SOURCE_URL:-https://raw.githubusercontent.com/fengbule/fbtoolbox/main/toolbox.sh}"
+SELF_TARGET="${SELF_TARGET:-}"
 FB_SOURCE_URL="${FB_SOURCE_URL:-https://raw.githubusercontent.com/fengbule/zhuanfa/main/fb.sh}"
+TOOLBOX_AUTO_INSTALL="${TOOLBOX_AUTO_INSTALL:-1}"
 ITEM_SEP=$'\t'
+PATH_BLOCK_BEGIN="# >>> toolbox path >>>"
+PATH_BLOCK_END="# <<< toolbox path <<<"
 
 if [[ -t 1 && "${TERM:-dumb}" != "dumb" ]]; then
   C0='\033[0m'
@@ -171,54 +174,229 @@ print_version() {
   printf '%s\n' "${APP_NAME} ${APP_VERSION}"
 }
 
+path_has_dir() {
+  local dir="$1"
+  [[ ":$PATH:" == *":${dir}:"* ]]
+}
+
+is_debian_or_ubuntu() {
+  local os_release="/etc/os-release"
+  local id="" id_like=""
+
+  [[ -r "$os_release" ]] || return 1
+  # shellcheck disable=SC1090
+  . "$os_release"
+  id=" ${ID:-} "
+  id_like=" ${ID_LIKE:-} "
+  [[ "$id" == *" debian "* || "$id" == *" ubuntu "* || "$id_like" == *" debian "* || "$id_like" == *" ubuntu "* ]]
+}
+
+resolve_existing_toolbox_command() {
+  local existing=""
+  existing="$(command -v toolbox 2>/dev/null || true)"
+  [[ -n "$existing" && -f "$existing" ]] || return 1
+  is_installed_toolbox "$existing" || return 1
+  printf '%s\n' "$existing"
+}
+
+dedupe_targets() {
+  local item
+  local -A seen=()
+  local unique=()
+  for item in "$@"; do
+    [[ -n "$item" ]] || continue
+    if [[ -z "${seen[$item]+x}" ]]; then
+      unique+=("$item")
+      seen["$item"]=1
+    fi
+  done
+  printf '%s\n' "${unique[@]}"
+}
+
+build_install_target_candidates() {
+  local existing=""
+  local candidates=()
+
+  if [[ -n "$SELF_TARGET" ]]; then
+    printf '%s\n' "$SELF_TARGET"
+    return 0
+  fi
+
+  existing="$(resolve_existing_toolbox_command || true)"
+  candidates+=("$existing")
+  candidates+=("/usr/local/bin/toolbox")
+
+  if [[ -n "${HOME:-}" ]]; then
+    if is_debian_or_ubuntu; then
+      candidates+=("${HOME}/.local/bin/toolbox")
+      candidates+=("${HOME}/bin/toolbox")
+    else
+      candidates+=("${HOME}/bin/toolbox")
+      candidates+=("${HOME}/.local/bin/toolbox")
+    fi
+  fi
+
+  dedupe_targets "${candidates[@]}"
+}
+
+run_target_command() {
+  local target="$1"
+  shift
+
+  if "$@" 2>/dev/null; then
+    return 0
+  fi
+
+  if [[ "$target" == /usr/local/bin/* || "$target" == /usr/bin/* || "$target" == /opt/* ]]; then
+    command -v sudo >/dev/null 2>&1 || return 1
+    sudo "$@"
+    return $?
+  fi
+
+  return 1
+}
+
+ensure_target_parent_dir() {
+  local target="$1"
+  local target_dir
+  target_dir="$(dirname "$target")"
+  run_target_command "$target" mkdir -p "$target_dir"
+}
+
 install_file() {
   local source_path="$1" target_path="$2"
 
+  ensure_target_parent_dir "$target_path" || return 1
+
   if command -v install >/dev/null 2>&1; then
-    install -m 0755 "$source_path" "$target_path"
+    run_target_command "$target_path" install -m 0755 "$source_path" "$target_path"
     return 0
   fi
 
-  cp "$source_path" "$target_path"
-  chmod 0755 "$target_path"
+  run_target_command "$target_path" cp "$source_path" "$target_path" || return 1
+  run_target_command "$target_path" chmod 0755 "$target_path"
+}
+
+remove_managed_path_blocks() {
+  local file tmp
+
+  [[ -n "${HOME:-}" ]] || return 0
+
+  for file in "${HOME}/.profile" "${HOME}/.bashrc"; do
+    [[ -f "$file" ]] || continue
+    tmp="$(mktemp)"
+    awk -v begin="$PATH_BLOCK_BEGIN" -v end="$PATH_BLOCK_END" '
+      $0 == begin { skip = 1; next }
+      $0 == end { skip = 0; next }
+      !skip { print }
+    ' "$file" > "$tmp"
+    mv "$tmp" "$file"
+  done
+}
+
+ensure_managed_path_blocks() {
+  local target_dir="$1"
+  local file
+
+  [[ -n "${HOME:-}" ]] || return 0
+  case "$target_dir" in
+    "${HOME}/.local/bin"| "${HOME}/bin")
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+
+  remove_managed_path_blocks
+
+  for file in "${HOME}/.profile" "${HOME}/.bashrc"; do
+    mkdir -p "$(dirname "$file")"
+    touch "$file"
+    {
+      printf '\n%s\n' "$PATH_BLOCK_BEGIN"
+      printf 'export PATH="%s:$PATH"\n' "$target_dir"
+      printf '%s\n' "$PATH_BLOCK_END"
+    } >> "$file"
+  done
 }
 
 show_post_install_hint() {
-  local target_dir
-  target_dir="$(dirname "$SELF_TARGET")"
+  local target_dir="$1"
 
   log "已安装到 $SELF_TARGET"
-  if [[ ":$PATH:" != *":${target_dir}:"* ]]; then
-    warn "${target_dir} 当前不在 PATH 中。"
-    warn "可直接运行: $SELF_TARGET"
+  if path_has_dir "$target_dir"; then
+    log "以后直接输入 toolbox 即可"
+    if [[ -t 0 ]]; then
+      echo -e "${DIM}如果当前 shell 仍提示找不到 toolbox，可执行 hash -r 后重试。${C0}"
+    fi
     return 0
   fi
 
-  log "以后直接输入 toolbox 即可"
-  if [[ -t 0 ]]; then
-    echo -e "${DIM}如果当前 shell 仍提示找不到 toolbox，可执行 hash -r 后重试。${C0}"
-  fi
+  case "$target_dir" in
+    "${HOME}/.local/bin"| "${HOME}/bin")
+      warn "${target_dir} 已写入 Debian / Ubuntu 常用 shell 配置。"
+      warn "执行 source ~/.profile 或重新登录后，即可直接使用 toolbox。"
+      ;;
+    *)
+      warn "${target_dir} 当前不在 PATH 中。"
+      warn "可直接运行: $SELF_TARGET"
+      ;;
+  esac
 }
 
 show_temporary_run_hint() {
-  if is_installed_toolbox "$SELF_TARGET"; then
+  local target_dir=""
+
+  if [[ -n "$SELF_TARGET" && -f "$SELF_TARGET" ]] && is_installed_toolbox "$SELF_TARGET"; then
+    target_dir="$(dirname "$SELF_TARGET")"
+    if path_has_dir "$target_dir"; then
+      return 0
+    fi
+    case "$target_dir" in
+      "${HOME}/.local/bin"| "${HOME}/bin")
+        echo -e "${DIM}提示: toolbox 已安装到 ${target_dir}，执行 source ~/.profile 或重新登录后即可直接使用。${C0}"
+        ;;
+      *)
+        echo -e "${DIM}提示: toolbox 已安装到 ${SELF_TARGET}。${C0}"
+        ;;
+    esac
     return 0
   fi
 
-  echo -e "${DIM}提示: 当前是临时运行模式；如需后续直接输入 toolbox，请先选择 99 安装本地命令。${C0}"
+  if resolve_existing_toolbox_command >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo -e "${DIM}提示: 当前是临时运行模式；脚本会先自动安装 / 修复 toolbox 命令，再进入菜单。${C0}"
+}
+
+install_to_best_target() {
+  local source_path="$1"
+  local candidate target_dir
+  local attempted=()
+
+  while IFS= read -r candidate; do
+    [[ -n "$candidate" ]] || continue
+    attempted+=("$candidate")
+    if install_file "$source_path" "$candidate"; then
+      SELF_TARGET="$candidate"
+      target_dir="$(dirname "$SELF_TARGET")"
+      ensure_managed_path_blocks "$target_dir"
+      show_post_install_hint "$target_dir"
+      return 0
+    fi
+  done < <(build_install_target_candidates)
+
+  die "无法安装 toolbox。已尝试: ${attempted[*]}"
 }
 
 install_self() {
-  local target_dir
   if [[ ! -f "$0" ]]; then
     log "当前脚本不是本地常规文件，改为从远程安装。"
     install_self_remote
     return 0
   fi
-  target_dir="$(dirname "$SELF_TARGET")"
-  mkdir -p "$target_dir"
-  install_file "$0" "$SELF_TARGET"
-  show_post_install_hint
+  install_to_best_target "$0"
 }
 
 install_self_remote() {
@@ -234,9 +412,8 @@ install_self_remote() {
     rm -f "$tmp"
     die "缺少 curl 或 wget，无法安装 toolbox"
   fi
-  install_file "$tmp" "$SELF_TARGET"
+  install_to_best_target "$tmp"
   rm -f "$tmp"
-  show_post_install_hint
 }
 
 is_installed_toolbox() {
@@ -247,6 +424,12 @@ is_installed_toolbox() {
 
 uninstall_self() {
   local yn=""
+  local target_dir
+
+  if [[ -z "$SELF_TARGET" ]]; then
+    SELF_TARGET="$(resolve_existing_toolbox_command || true)"
+  fi
+  [[ -n "$SELF_TARGET" ]] || die "未找到已安装的 toolbox 命令"
 
   if [[ -d "$SELF_TARGET" && ! -L "$SELF_TARGET" ]]; then
     die "SELF_TARGET 指向目录，拒绝卸载: $SELF_TARGET"
@@ -266,8 +449,31 @@ uninstall_self() {
     [[ "$yn" =~ ^[Yy]$ ]] || return 0
   fi
 
-  rm -f -- "$SELF_TARGET"
+  run_target_command "$SELF_TARGET" rm -f -- "$SELF_TARGET" || die "卸载失败: $SELF_TARGET"
+  target_dir="$(dirname "$SELF_TARGET")"
+  case "$target_dir" in
+    "${HOME}/.local/bin"| "${HOME}/bin")
+      remove_managed_path_blocks
+      ;;
+  esac
   log "已卸载 $SELF_TARGET"
+}
+
+ensure_toolbox_command() {
+  if [[ "$TOOLBOX_AUTO_INSTALL" != "1" ]]; then
+    return 0
+  fi
+
+  if resolve_existing_toolbox_command >/dev/null 2>&1; then
+    return 0
+  fi
+
+  log "未检测到 toolbox 命令，先自动安装 / 修复。"
+  if [[ -f "$0" ]]; then
+    install_self
+  else
+    install_self_remote
+  fi
 }
 
 # 菜单项格式: 类型、显示名称、标题、命令/说明、模式、备注
@@ -408,8 +614,8 @@ show_main_menu() {
     ((index++))
   done
   echo "97) 卸载已安装的 toolbox 命令"
-  echo "98) 从远程更新/安装 toolbox"
-  echo "99) 安装本地 toolbox 命令"
+  echo "98) 从远程更新 / 修复 toolbox"
+  echo "99) 安装 / 修复本地 toolbox 命令"
   echo "0) 退出"
   echo
   show_temporary_run_hint
@@ -466,6 +672,7 @@ show_help() {
   cat <<EOF
 用法:
   bash toolbox.sh
+  bash toolbox.sh menu
   bash toolbox.sh install-self
   bash toolbox.sh uninstall-self
   bash <(curl -fsSL ${SELF_SOURCE_URL})
@@ -483,15 +690,18 @@ show_help() {
   bash <(curl -fsSL ${SELF_SOURCE_URL})
 
 远程安装:
+  首次直接运行会自动安装 / 修复 toolbox 命令
   bash <(curl -fsSL ${SELF_SOURCE_URL}) install-self
   或
   curl -fsSL ${SELF_SOURCE_URL} | tr -d '\r' > /usr/local/bin/toolbox
   chmod 755 /usr/local/bin/toolbox
   toolbox
+  普通用户写入 /usr/local/bin 时，可在写入和 chmod 前加 sudo
 
 说明:
   - 已移除占位说明页、重复分类和明显偏题的入口。
   - 仅保留更聚焦的 VPS 检测、重装、网络和安装类功能。
+  - Debian / Ubuntu 优先安装到 /usr/local/bin；无权限时回落到 ~/.local/bin 或 ~/bin。
   - 远程脚本来自第三方仓库，执行前请自行判断风险。
   - uninstall-self 仅删除已安装的 toolbox 命令文件，不回滚已执行过的外部脚本或系统改动。
 EOF
@@ -517,6 +727,7 @@ main() {
       print_version
       ;;
     menu|"")
+      ensure_toolbox_command
       while true; do
         show_main_menu
         read -r -p "请选择分类 [1]: " choice

@@ -4,7 +4,7 @@
 
 仓库地址:
 
-- https://github.com/fengbule/fbtoolbox.sh
+- https://github.com/fengbule/fbtoolbox
 
 `fb` 子工具来源仓库:
 
@@ -14,6 +14,7 @@
 
 - 移除了占位说明页、重复分类和明显偏题的入口
 - 保留更常用、可直接执行的 VPS 脚本入口
+- 直接运行时会自动安装 / 修复 `toolbox` 命令
 - 增加 `version`、`update-self` 和 `uninstall-self` 命令
 - 补充本地可跑的 smoke test
 
@@ -33,30 +34,34 @@
 ## 直接运行
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/fengbule/fbtoolbox.sh/main/toolbox.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/fengbule/fbtoolbox/main/toolbox.sh)
 ```
 
-上面这条是临时运行，不会自动生成 `toolbox` 命令。
+上面这条会先自动安装 / 修复 `toolbox` 命令，然后进入菜单。
 
 ## 安装为本地命令
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/fengbule/fbtoolbox.sh/main/toolbox.sh) install-self
+bash <(curl -fsSL https://raw.githubusercontent.com/fengbule/fbtoolbox/main/toolbox.sh) install-self
 toolbox
 ```
+
+Debian / Ubuntu 上会优先安装到 `/usr/local/bin/toolbox`；如果当前用户没有权限写入，会自动回落到 `~/.local/bin/toolbox` 或 `~/bin/toolbox`，并补齐 shell 的 `PATH` 配置。
 
 也可以使用传统安装方式:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/fengbule/fbtoolbox.sh/main/toolbox.sh | tr -d '\r' > /usr/local/bin/toolbox
+curl -fsSL https://raw.githubusercontent.com/fengbule/fbtoolbox/main/toolbox.sh | tr -d '\r' > /usr/local/bin/toolbox
 chmod 755 /usr/local/bin/toolbox
 toolbox
 ```
 
-如果已经下载到本地，也可以执行:
+普通用户如果需要写入 `/usr/local/bin`，把上面两条写入命令前面加上 `sudo` 即可。
+
+如果已经下载到本地，直接运行也会自动安装 / 修复 `toolbox` 命令:
 
 ```bash
-bash toolbox.sh install-self
+bash toolbox.sh
 ```
 
 如果安装后当前 shell 仍提示找不到 `toolbox`，先执行:
@@ -93,6 +98,7 @@ bash tests/smoke.sh
 - 某些命令包含占位符，例如 `password`、`端口`、`region_name`，执行前建议先修改
 - 远程脚本来自第三方仓库，运行前请自行判断风险
 - DD、内核优化、网络改写一类命令都已标记为危险操作
+- Debian / Ubuntu 会优先尝试系统级安装，必要时自动回落到用户目录安装
 - `toolbox uninstall-self` 只删除安装出来的命令文件，不回滚已经执行过的外部脚本或系统改动
 
 ## 换行控制
