@@ -2,13 +2,14 @@
 set -Eeuo pipefail
 
 APP_NAME="VPS 工具箱"
-APP_VERSION="v2.2.0"
+APP_VERSION="v2.3.0"
 APP_REPO="https://github.com/fengbule/fbtoolbox"
 SELF_SOURCE_URL="${TOOLBOX_SELF_SOURCE_URL:-https://raw.githubusercontent.com/fengbule/fbtoolbox/main/toolbox.sh}"
 SELF_TARGET="${SELF_TARGET:-}"
 FB_SOURCE_URL="${FB_SOURCE_URL:-https://raw.githubusercontent.com/fengbule/zhuanfa/main/fb.sh}"
 TOOLBOX_AUTO_INSTALL="${TOOLBOX_AUTO_INSTALL:-1}"
 ITEM_SEP=$'\t'
+PORT25_TEST_CMD='hosts=(smtp.aol.com smtp.gmail.com smtp.office365.com); for host in "${hosts[@]}"; do echo "测试 ${host}:25 ..."; if timeout 8 bash -c ":</dev/tcp/${host}/25" 2>/dev/null; then echo "可连通: ${host}:25"; exit 0; fi; echo "不可达: ${host}:25"; done; echo "所有测试目标都无法连通。常见原因是机房封禁出站 25 端口、防火墙限制或本地路由不可达。"; exit 1'
 PATH_BLOCK_BEGIN="# >>> toolbox path >>>"
 PATH_BLOCK_END="# <<< toolbox path <<<"
 
@@ -520,7 +521,7 @@ PERF_MENU_ITEMS=(
 )
 
 MEDIA_MENU_ITEMS=(
-  "cmd${ITEM_SEP}常用流媒体检测${ITEM_SEP}常用流媒体检测${ITEM_SEP}bash <(curl -L -s check.unlock.media)${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}常用流媒体检测${ITEM_SEP}常用流媒体检测${ITEM_SEP}bash <(curl -fsSL https://raw.githubusercontent.com/lmc999/RegionRestrictionCheck/main/check.sh)${ITEM_SEP}normal${ITEM_SEP}"
   "cmd${ITEM_SEP}原生流媒体检测${ITEM_SEP}原生流媒体检测${ITEM_SEP}bash <(curl -fsSL Media.Check.Place)${ITEM_SEP}normal${ITEM_SEP}"
   "cmd${ITEM_SEP}精准流媒体检测${ITEM_SEP}精准流媒体检测${ITEM_SEP}bash <(curl -L -s https://github.com/1-stream/RegionRestrictionCheck/raw/main/check.sh)${ITEM_SEP}normal${ITEM_SEP}"
   "cmd${ITEM_SEP}IP 质量体检${ITEM_SEP}IP 质量体检${ITEM_SEP}bash <(curl -fsSL IP.Check.Place)${ITEM_SEP}normal${ITEM_SEP}"
@@ -528,9 +529,9 @@ MEDIA_MENU_ITEMS=(
 )
 
 SPEEDTEST_MENU_ITEMS=(
-  "cmd${ITEM_SEP}Speedtest${ITEM_SEP}Speedtest${ITEM_SEP}bash <(curl -fsSL bash.icu/speedtest)${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}Speedtest Bench${ITEM_SEP}Speedtest Bench${ITEM_SEP}bash <(curl -fsSL https://raw.githubusercontent.com/laset-com/speedtest/master/speedtest.sh)${ITEM_SEP}normal${ITEM_SEP}"
   "cmd${ITEM_SEP}Taier${ITEM_SEP}Taier${ITEM_SEP}bash <(curl -fsSL res.yserver.ink/taier.sh)${ITEM_SEP}normal${ITEM_SEP}"
-  "cmd${ITEM_SEP}hyperspeed${ITEM_SEP}hyperspeed${ITEM_SEP}bash <(curl -Lso- https://bench.im/hyperspeed)${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}Superspeed${ITEM_SEP}Superspeed${ITEM_SEP}bash <(curl -fsSL https://raw.githubusercontent.com/ernisn/superspeed/master/superspeed.sh)${ITEM_SEP}normal${ITEM_SEP}"
   "cmd${ITEM_SEP}全球测速${ITEM_SEP}全球测速${ITEM_SEP}wget -qO- nws.sh | bash${ITEM_SEP}normal${ITEM_SEP}"
   "cmd${ITEM_SEP}区域速度测试${ITEM_SEP}区域速度测试${ITEM_SEP}wget -qO- nws.sh | bash -s -- -r region_name${ITEM_SEP}normal${ITEM_SEP}执行前建议把 region_name 改成目标区域。"
   "cmd${ITEM_SEP}Ping 和路由测试${ITEM_SEP}Ping 和路由测试${ITEM_SEP}wget -qO- nws.sh | bash -s -- -rt [region]${ITEM_SEP}normal${ITEM_SEP}执行前建议把 [region] 改成目标区域。"
@@ -550,7 +551,7 @@ FUNCTIONS_MENU_ITEMS=(
   "cmd${ITEM_SEP}Linux-NetSpeed${ITEM_SEP}Linux-NetSpeed${ITEM_SEP}curl -fsSLo tcpx.sh https://raw.githubusercontent.com/ylx2016/Linux-NetSpeed/master/tcpx.sh && chmod +x tcpx.sh && ./tcpx.sh${ITEM_SEP}normal${ITEM_SEP}"
   "cmd${ITEM_SEP}TCP 窗口调优${ITEM_SEP}TCP 窗口调优${ITEM_SEP}wget -qO tools.sh http://sh.nekoneko.cloud/tools.sh && bash tools.sh${ITEM_SEP}normal${ITEM_SEP}"
   "cmd${ITEM_SEP}添加 WARP${ITEM_SEP}添加 WARP${ITEM_SEP}curl -fsSLo menu.sh https://gitlab.com/fscarmen/warp/-/raw/main/menu.sh && bash menu.sh [option] [license/url/token]${ITEM_SEP}normal${ITEM_SEP}执行前可以把 [option] [license/url/token] 替换成你的参数。"
-  "cmd${ITEM_SEP}25 端口开放测试${ITEM_SEP}25 端口开放测试${ITEM_SEP}telnet smtp.aol.com 25${ITEM_SEP}normal${ITEM_SEP}系统需要先安装 telnet。"
+  "cmd${ITEM_SEP}25 端口开放测试${ITEM_SEP}25 端口开放测试${ITEM_SEP}${PORT25_TEST_CMD}${ITEM_SEP}normal${ITEM_SEP}使用 Bash /dev/tcp 依次测试多个常见 SMTP 目标；全部失败通常表示机房封禁出站 25 端口或路由不可达。"
 )
 
 INSTALLERS_MENU_ITEMS=(
@@ -595,6 +596,17 @@ declare -A MENU_ARRAYS=(
   [allinone]="ALLINONE_MENU_ITEMS"
 )
 
+declare -A SHORT_URL_MAP=(
+  [bench.sh]="https://bench.sh"
+  [yabs.sh]="https://yabs.sh"
+  [check.unlock.media]="https://raw.githubusercontent.com/lmc999/RegionRestrictionCheck/main/check.sh"
+  [Media.Check.Place]="https://Media.Check.Place"
+  [IP.Check.Place]="https://IP.Check.Place"
+  [res.yserver.ink/taier.sh]="https://res.yserver.ink/taier.sh"
+  [nws.sh]="https://nws.sh"
+  [kejilion.sh]="https://kejilion.sh"
+)
+
 parse_menu_item() {
   ITEM_KIND=""
   ITEM_LABEL=""
@@ -603,6 +615,132 @@ parse_menu_item() {
   ITEM_MODE="normal"
   ITEM_NOTE=""
   IFS="$ITEM_SEP" read -r ITEM_KIND ITEM_LABEL ITEM_TITLE ITEM_PAYLOAD ITEM_MODE ITEM_NOTE <<< "$1"
+}
+
+sanitize_probe_token() {
+  local token="$1"
+  token="${token//\'/}"
+  token="${token//\"/}"
+  token="${token#<}"
+  token="${token#(}"
+  token="${token#<\(}"
+  token="${token%\)}"
+  token="${token%;}"
+  token="${token%,}"
+  token="${token%|}"
+  printf '%s\n' "$token"
+}
+
+url_from_probe_token() {
+  local token="$1" cleaned
+  cleaned="$(sanitize_probe_token "$token")"
+
+  case "$cleaned" in
+    http://*|https://*)
+      printf '%s\n' "$cleaned"
+      ;;
+    *)
+      if [[ -n "$cleaned" && -n "${SHORT_URL_MAP[$cleaned]+x}" ]]; then
+        printf '%s\n' "${SHORT_URL_MAP[$cleaned]}"
+      fi
+      ;;
+  esac
+}
+
+extract_probe_urls() {
+  local cmd="$1" token url
+  local -A seen_targets=()
+
+  for token in $cmd; do
+    url="$(url_from_probe_token "$token")"
+    [[ -n "$url" ]] || continue
+    if [[ -z "${seen_targets[$url]+x}" ]]; then
+      seen_targets["$url"]=1
+      printf '%s\n' "$url"
+    fi
+  done
+}
+
+probe_url() {
+  local url="$1"
+  local connect_timeout="${TOOLBOX_LINK_CHECK_CONNECT_TIMEOUT:-5}"
+  local max_time="${TOOLBOX_LINK_CHECK_MAX_TIME:-15}"
+
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSIL --connect-timeout "$connect_timeout" --max-time "$max_time" "$url" >/dev/null 2>&1 \
+      || curl -fsSL --connect-timeout "$connect_timeout" --max-time "$max_time" --range 0-0 "$url" >/dev/null 2>&1
+    return $?
+  fi
+
+  if command -v wget >/dev/null 2>&1; then
+    wget --spider -q -T "$max_time" -t 1 "$url" >/dev/null 2>&1 \
+      || wget -qO- -T "$max_time" -t 1 "$url" >/dev/null 2>&1
+    return $?
+  fi
+
+  return 2
+}
+
+check_menu_links() {
+  local mode="${1:-}" item menu_key _ array_name menu_item url seen_key
+  local total=0 failures=0
+  local -A seen=()
+
+  if [[ "$mode" == "--help" || "$mode" == "-h" ]]; then
+    cat <<EOF
+用法:
+  toolbox check-links
+  toolbox check-links --list
+  toolbox check-links --strict
+
+说明:
+  默认只检查菜单命令里的远程 URL 是否可达，不执行远程脚本。
+  --list 只列出将要检查的 URL。
+  --strict 在存在不可达 URL 时返回非零退出码。
+EOF
+    return 0
+  fi
+
+  for item in "${MAIN_MENU_ITEMS[@]}"; do
+    IFS="$ITEM_SEP" read -r menu_key _ <<< "$item"
+    array_name="${MENU_ARRAYS[$menu_key]}"
+    local -n menu_items_ref="$array_name"
+    for menu_item in "${menu_items_ref[@]}"; do
+      parse_menu_item "$menu_item"
+      [[ "$ITEM_KIND" == "cmd" ]] || continue
+      while IFS= read -r url; do
+        [[ -n "$url" ]] || continue
+        seen_key="$url"
+        [[ -z "${seen[$seen_key]+x}" ]] || continue
+        seen["$seen_key"]=1
+        ((++total))
+
+        if [[ "$mode" == "--list" ]]; then
+          printf '%s\n' "$url"
+          continue
+        fi
+
+        printf '[CHECK] %s\n' "$url"
+        if probe_url "$url"; then
+          printf '[OK] %s\n' "$url"
+        else
+          ((++failures))
+          printf '[WARN] %s\n' "$url" >&2
+        fi
+      done < <(extract_probe_urls "$ITEM_PAYLOAD")
+    done
+    unset -n menu_items_ref
+  done
+
+  if [[ "$mode" == "--list" ]]; then
+    return 0
+  fi
+
+  printf '检查完成: %d 个 URL，%d 个警告。\n' "$total" "$failures"
+  if [[ "$mode" == "--strict" && "$failures" -gt 0 ]]; then
+    return 1
+  fi
+  return 0
 }
 
 show_main_menu() {
@@ -684,6 +822,7 @@ show_help() {
   toolbox help
   toolbox version
   toolbox update-self
+  toolbox check-links
   toolbox uninstall-self
 
 远程运行:
@@ -703,6 +842,7 @@ show_help() {
   - 仅保留更聚焦的 VPS 检测、重装、网络和安装类功能。
   - Debian / Ubuntu 优先安装到 /usr/local/bin；无权限时回落到 ~/.local/bin 或 ~/bin。
   - 远程脚本来自第三方仓库，执行前请自行判断风险。
+  - check-links 只做远程 URL 可达性检查，不会执行第三方脚本。
   - uninstall-self 仅删除已安装的 toolbox 命令文件，不回滚已执行过的外部脚本或系统改动。
 EOF
 }
@@ -725,6 +865,10 @@ main() {
       ;;
     version|-v|--version)
       print_version
+      ;;
+    check-links|doctor|health-check)
+      shift || true
+      check_menu_links "$@"
       ;;
     menu|"")
       ensure_toolbox_command

@@ -15,7 +15,7 @@
 - 移除了占位说明页、重复分类和明显偏题的入口
 - 保留更常用、可直接执行的 VPS 脚本入口
 - 直接运行时会自动安装 / 修复 `toolbox` 命令
-- 增加 `version`、`update-self` 和 `uninstall-self` 命令
+- 增加 `version`、`update-self`、`check-links` 和 `uninstall-self` 命令
 - 补充本地可跑的 smoke test
 
 ## 当前分类
@@ -77,6 +77,7 @@ toolbox
 toolbox help
 toolbox version
 toolbox update-self
+toolbox check-links
 toolbox uninstall-self
 ```
 
@@ -84,6 +85,12 @@ toolbox uninstall-self
 
 ```bash
 bash tests/smoke.sh
+```
+
+只检查菜单里的远程 URL 是否可达，不执行第三方脚本:
+
+```bash
+bash toolbox.sh check-links
 ```
 
 ## 仓库配置
@@ -98,6 +105,7 @@ bash tests/smoke.sh
 - 某些命令包含占位符，例如 `password`、`端口`、`region_name`，执行前建议先修改
 - 远程脚本来自第三方仓库，运行前请自行判断风险
 - DD、内核优化、网络改写一类命令都已标记为危险操作
+- `toolbox check-links` 只做 URL 可达性检查，不执行第三方脚本；第三方服务临时故障时会给出警告
 - Debian / Ubuntu 会优先尝试系统级安装，必要时自动回落到用户目录安装
 - `toolbox uninstall-self` 只删除安装出来的命令文件，不回滚已经执行过的外部脚本或系统改动
 
