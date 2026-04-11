@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 APP_NAME="VPS 工具箱"
-APP_VERSION="v2.3.0"
+APP_VERSION="v2.3.2"
 APP_REPO="https://github.com/fengbule/fbtoolbox"
 SELF_SOURCE_URL="${TOOLBOX_SELF_SOURCE_URL:-https://raw.githubusercontent.com/fengbule/fbtoolbox/main/toolbox.sh}"
 SELF_TARGET="${SELF_TARGET:-}"
@@ -104,6 +104,31 @@ prepare_command() {
   return 0
 }
 
+run_command_in_pseudo_tty() {
+  local cmd="$1" wrapper="" status=0
+  wrapper="$(mktemp)"
+  printf '#!/usr/bin/env bash\nexec bash -lc %q\n' "$cmd" > "$wrapper"
+  chmod 700 "$wrapper"
+
+  if script -qec "$wrapper" /dev/null; then
+    status=0
+  else
+    status=$?
+  fi
+
+  rm -f "$wrapper"
+  return $status
+}
+
+run_prepared_command() {
+  local cmd="$1"
+  if [[ ! -t 0 ]] && command -v script >/dev/null 2>&1; then
+    run_command_in_pseudo_tty "$cmd"
+    return $?
+  fi
+  bash -lc "$cmd"
+}
+
 execute_command() {
   local title="$1" default_cmd="$2" mode="${3:-normal}" note="${4:-}" yn="" status=0
   RUN_CMD=""
@@ -123,7 +148,7 @@ execute_command() {
     [[ "$yn" =~ ^[Yy]$ ]] || return 0
   fi
   echo
-  if bash -lc "$RUN_CMD"; then
+  if run_prepared_command "$RUN_CMD"; then
     log "命令执行完成。"
   else
     status=$?
@@ -423,6 +448,15 @@ is_installed_toolbox() {
   grep -Fq "APP_REPO=\"${APP_REPO}\"" "$target_path"
 }
 
+installed_toolbox_version() {
+  local target_path="$1"
+  [[ -f "$target_path" ]] || return 1
+  sed -n \
+    -e 's/^APP_VERSION="\(v[^"]*\)"/\1/p' \
+    -e 's/^APP_VERSION="${APP_VERSION:-\(v[^"]*\)}"/\1/p' \
+    "$target_path" | head -n1
+}
+
 uninstall_self() {
   local yn=""
   local target_dir
@@ -461,15 +495,29 @@ uninstall_self() {
 }
 
 ensure_toolbox_command() {
+  local existing="" installed_version=""
+
   if [[ "$TOOLBOX_AUTO_INSTALL" != "1" ]]; then
     return 0
   fi
 
-  if resolve_existing_toolbox_command >/dev/null 2>&1; then
-    return 0
+  existing="$(resolve_existing_toolbox_command || true)"
+  if [[ -n "$existing" ]]; then
+    installed_version="$(installed_toolbox_version "$existing" || true)"
+    if [[ -n "$installed_version" && "$installed_version" == "$APP_VERSION" ]]; then
+      return 0
+    fi
+
+    SELF_TARGET="${SELF_TARGET:-$existing}"
+    if [[ -n "$installed_version" ]]; then
+      log "检测到已安装的旧版 toolbox (${installed_version} -> ${APP_VERSION})，先自动更新。"
+    else
+      log "检测到已安装的 toolbox 版本不可识别，先自动更新 / 修复。"
+    fi
+  else
+    log "未检测到 toolbox 命令，先自动安装 / 修复。"
   fi
 
-  log "未检测到 toolbox 命令，先自动安装 / 修复。"
   if [[ -f "$0" ]]; then
     install_self
   else
@@ -567,7 +615,7 @@ INSTALLERS_MENU_ITEMS=(
 
 ALLINONE_MENU_ITEMS=(
   "cmd${ITEM_SEP}科技lion${ITEM_SEP}科技lion${ITEM_SEP}apt update -y && apt install -y curl && bash <(curl -fsSL kejilion.sh)${ITEM_SEP}normal${ITEM_SEP}"
-  "cmd${ITEM_SEP}SKY-BOX${ITEM_SEP}SKY-BOX${ITEM_SEP}wget -qO box.sh https://raw.githubusercontent.com/BlueSkyXN/SKY-BOX/main/box.sh && chmod +x box.sh && clear && ./box.sh${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}SKY-BOX${ITEM_SEP}SKY-BOX${ITEM_SEP}wget -qO box.sh https://raw.githubusercontent.com/BlueSkyXN/SKY-BOX/main/box.sh && chmod +x box.sh && { clear >/dev/null 2>&1 || true; } && ./box.sh${ITEM_SEP}normal${ITEM_SEP}"
 )
 
 declare -A MENU_TITLES=(
