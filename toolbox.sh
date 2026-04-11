@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 APP_NAME="VPS 工具箱"
-APP_VERSION="v2.3.0"
+APP_VERSION="v2.3.1"
 APP_REPO="https://github.com/fengbule/fbtoolbox"
 SELF_SOURCE_URL="${TOOLBOX_SELF_SOURCE_URL:-https://raw.githubusercontent.com/fengbule/fbtoolbox/main/toolbox.sh}"
 SELF_TARGET="${SELF_TARGET:-}"
@@ -104,6 +104,31 @@ prepare_command() {
   return 0
 }
 
+run_command_in_pseudo_tty() {
+  local cmd="$1" wrapper="" status=0
+  wrapper="$(mktemp)"
+  printf '#!/usr/bin/env bash\nexec bash -lc %q\n' "$cmd" > "$wrapper"
+  chmod 700 "$wrapper"
+
+  if script -qec "$wrapper" /dev/null; then
+    status=0
+  else
+    status=$?
+  fi
+
+  rm -f "$wrapper"
+  return $status
+}
+
+run_prepared_command() {
+  local cmd="$1"
+  if [[ ! -t 0 ]] && command -v script >/dev/null 2>&1; then
+    run_command_in_pseudo_tty "$cmd"
+    return $?
+  fi
+  bash -lc "$cmd"
+}
+
 execute_command() {
   local title="$1" default_cmd="$2" mode="${3:-normal}" note="${4:-}" yn="" status=0
   RUN_CMD=""
@@ -123,7 +148,7 @@ execute_command() {
     [[ "$yn" =~ ^[Yy]$ ]] || return 0
   fi
   echo
-  if bash -lc "$RUN_CMD"; then
+  if run_prepared_command "$RUN_CMD"; then
     log "命令执行完成。"
   else
     status=$?
