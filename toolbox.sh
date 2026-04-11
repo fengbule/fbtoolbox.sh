@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 APP_NAME="VPS 工具箱"
-APP_VERSION="v2.3.1"
+APP_VERSION="v2.3.2"
 APP_REPO="https://github.com/fengbule/fbtoolbox"
 SELF_SOURCE_URL="${TOOLBOX_SELF_SOURCE_URL:-https://raw.githubusercontent.com/fengbule/fbtoolbox/main/toolbox.sh}"
 SELF_TARGET="${SELF_TARGET:-}"
@@ -592,7 +592,7 @@ INSTALLERS_MENU_ITEMS=(
 
 ALLINONE_MENU_ITEMS=(
   "cmd${ITEM_SEP}科技lion${ITEM_SEP}科技lion${ITEM_SEP}apt update -y && apt install -y curl && bash <(curl -fsSL kejilion.sh)${ITEM_SEP}normal${ITEM_SEP}"
-  "cmd${ITEM_SEP}SKY-BOX${ITEM_SEP}SKY-BOX${ITEM_SEP}wget -qO box.sh https://raw.githubusercontent.com/BlueSkyXN/SKY-BOX/main/box.sh && chmod +x box.sh && clear && ./box.sh${ITEM_SEP}normal${ITEM_SEP}"
+  "cmd${ITEM_SEP}SKY-BOX${ITEM_SEP}SKY-BOX${ITEM_SEP}wget -qO box.sh https://raw.githubusercontent.com/BlueSkyXN/SKY-BOX/main/box.sh && chmod +x box.sh && { clear >/dev/null 2>&1 || true; } && ./box.sh${ITEM_SEP}normal${ITEM_SEP}"
 )
 
 declare -A MENU_TITLES=(

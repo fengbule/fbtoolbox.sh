@@ -109,7 +109,7 @@ else
   echo "script unavailable, skipping pseudo-tty smoke"
 fi
 
-echo "[14/16] port 25 command smoke"
+echo "[14/17] port 25 command smoke"
 PORT25_VIEW="$(printf '8\n8\n1\n0\n0\n' | TERM=dumb env TOOLBOX_AUTO_INSTALL=0 bash "$SCRIPT_PATH" menu)"
 grep -F "smtp.office365.com" <<< "$PORT25_VIEW" >/dev/null
 if grep -F "telnet smtp.aol.com" <<< "$PORT25_VIEW" >/dev/null; then
@@ -117,10 +117,18 @@ if grep -F "telnet smtp.aol.com" <<< "$PORT25_VIEW" >/dev/null; then
   exit 1
 fi
 
-echo "[15/16] git whitespace check"
+echo "[15/17] SKY-BOX command smoke"
+SKYBOX_VIEW="$(printf '10\n2\n1\n0\n0\n' | TERM=dumb env TOOLBOX_AUTO_INSTALL=0 bash "$SCRIPT_PATH" menu)"
+grep -F "./box.sh" <<< "$SKYBOX_VIEW" >/dev/null
+if grep -F "&& clear &&" <<< "$SKYBOX_VIEW" >/dev/null; then
+  echo "SKY-BOX command should not hard-fail on clear anymore" >&2
+  exit 1
+fi
+
+echo "[16/17] git whitespace check"
 git -C "$ROOT_DIR" diff --check
 
-echo "[16/16] cleanup"
+echo "[17/17] cleanup"
 cleanup
 TMP_DIR=""
 
