@@ -448,6 +448,15 @@ is_installed_toolbox() {
   grep -Fq "APP_REPO=\"${APP_REPO}\"" "$target_path"
 }
 
+installed_toolbox_version() {
+  local target_path="$1"
+  [[ -f "$target_path" ]] || return 1
+  sed -n \
+    -e 's/^APP_VERSION="\(v[^"]*\)"/\1/p' \
+    -e 's/^APP_VERSION="${APP_VERSION:-\(v[^"]*\)}"/\1/p' \
+    "$target_path" | head -n1
+}
+
 uninstall_self() {
   local yn=""
   local target_dir
@@ -486,15 +495,29 @@ uninstall_self() {
 }
 
 ensure_toolbox_command() {
+  local existing="" installed_version=""
+
   if [[ "$TOOLBOX_AUTO_INSTALL" != "1" ]]; then
     return 0
   fi
 
-  if resolve_existing_toolbox_command >/dev/null 2>&1; then
-    return 0
+  existing="$(resolve_existing_toolbox_command || true)"
+  if [[ -n "$existing" ]]; then
+    installed_version="$(installed_toolbox_version "$existing" || true)"
+    if [[ -n "$installed_version" && "$installed_version" == "$APP_VERSION" ]]; then
+      return 0
+    fi
+
+    SELF_TARGET="${SELF_TARGET:-$existing}"
+    if [[ -n "$installed_version" ]]; then
+      log "检测到已安装的旧版 toolbox (${installed_version} -> ${APP_VERSION})，先自动更新。"
+    else
+      log "检测到已安装的 toolbox 版本不可识别，先自动更新 / 修复。"
+    fi
+  else
+    log "未检测到 toolbox 命令，先自动安装 / 修复。"
   fi
 
-  log "未检测到 toolbox 命令，先自动安装 / 修复。"
   if [[ -f "$0" ]]; then
     install_self
   else
